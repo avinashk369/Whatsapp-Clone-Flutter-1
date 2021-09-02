@@ -5,7 +5,7 @@ import 'package:chatapp/Model/ChatModel.dart';
 import 'package:flutter/material.dart';
 
 class CreateGroup extends StatefulWidget {
-  CreateGroup({Key key}) : super(key: key);
+  CreateGroup({Key? key}) : super(key: key);
 
   @override
   _CreateGroupState createState() => _CreateGroupState();

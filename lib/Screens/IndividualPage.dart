@@ -1,16 +1,19 @@
 // import 'package:camera/camera.dart';
 // import 'package:chatapp/CustomUI/CameraUI.dart';
+import 'dart:io';
+
 import 'package:chatapp/CustomUI/OwnMessgaeCrad.dart';
 import 'package:chatapp/CustomUI/ReplyCard.dart';
 import 'package:chatapp/Model/ChatModel.dart';
 import 'package:chatapp/Model/MessageModel.dart';
-import 'package:emoji_picker/emoji_picker.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class IndividualPage extends StatefulWidget {
-  IndividualPage({Key key, this.chatModel, this.sourchat}) : super(key: key);
+  IndividualPage({Key? key, required this.chatModel, required this.sourchat})
+      : super(key: key);
   final ChatModel chatModel;
   final ChatModel sourchat;
 
@@ -25,7 +28,8 @@ class _IndividualPageState extends State<IndividualPage> {
   List<MessageModel> messages = [];
   TextEditingController _controller = TextEditingController();
   ScrollController _scrollController = ScrollController();
-  IO.Socket socket;
+  IO.Socket? socket;
+  String? _typing;
   @override
   void initState() {
     super.initState();
@@ -42,28 +46,71 @@ class _IndividualPageState extends State<IndividualPage> {
   }
 
   void connect() {
-    // MessageModel messageModel = MessageModel(sourceId: widget.sourceChat.id.toString(),targetId: );
-    socket = IO.io("http://192.168.0.106:5000", <String, dynamic>{
-      "transports": ["websocket"],
-      "autoConnect": false,
-    });
-    socket.connect();
-    socket.emit("signin", widget.sourchat.id);
-    socket.onConnect((data) {
-      print("Connected");
-      socket.on("message", (msg) {
-        print(msg);
-        setMessage("destination", msg["message"]);
-        _scrollController.animateTo(_scrollController.position.maxScrollExtent,
-            duration: Duration(milliseconds: 300), curve: Curves.easeOut);
+    try {
+      // MessageModel messageModel = MessageModel(sourceId: widget.sourceChat.id.toString(),targetId: );
+      socket = IO.io("http://192.168.43.170:5000", <String, dynamic>{
+        "transports": ["websocket"],
+        "autoConnect": false,
       });
-    });
-    print(socket.connected);
+      socket!.connect();
+
+      socket!.onConnect((data) {
+        print("Connected ${socket!.id}");
+        socket!.emit("signin", widget.sourchat.id);
+
+        socket!.on("message", handleMessage);
+        //typing indicator
+        socket!.on('typing', handleTyping);
+      });
+      print(socket!.connected);
+    } catch (e) {}
   }
+
+/**
+ * handle message
+ */
+  void handleMessage(data) {
+    try {
+      print(data);
+      setMessage("destination", data["message"]);
+      _scrollController.animateTo(_scrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 300), curve: Curves.easeOut);
+    } catch (e) {
+      print(e.toString());
+    }
+  }
+
+/**
+ * typing event 
+ */
+
+// Send update of user's typing status
+  sendTyping(bool typing) {
+    socket!.emit(
+        "typing", {"id": socket!.id, "typing": typing, "username": "Avinash"});
+  }
+
+// Listen to update of typing status from connected users
+  void handleTyping(data) {
+    print(data.toString());
+    final typingModel = TypingModel.fromJson(data);
+
+    if (!isMe(typingModel.id!) && typingModel.typing!) {
+      setState(() {
+        _typing = '${typingModel.username} is typing...';
+      });
+    } else if (!isMe(typingModel.id!) && !typingModel.typing!) {
+      setState(() {
+        _typing = '';
+      });
+    }
+  }
+
+  bool isMe(String id) => id == socket!.id;
 
   void sendMessage(String message, int sourceId, int targetId) {
     setMessage("source", message);
-    socket.emit("message",
+    socket!.emit("message",
         {"message": message, "sourceId": sourceId, "targetId": targetId});
   }
 
@@ -77,6 +124,12 @@ class _IndividualPageState extends State<IndividualPage> {
     setState(() {
       messages.add(messageModel);
     });
+  }
+
+  @override
+  void dispose() {
+    socket!.disconnect();
+    super.dispose();
   }
 
   @override
@@ -109,7 +162,7 @@ class _IndividualPageState extends State<IndividualPage> {
                     ),
                     CircleAvatar(
                       child: SvgPicture.asset(
-                        widget.chatModel.isGroup
+                        widget.chatModel.isGroup!
                             ? "assets/groups.svg"
                             : "assets/person.svg",
                         color: Colors.white,
@@ -131,14 +184,14 @@ class _IndividualPageState extends State<IndividualPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.chatModel.name,
+                        widget.chatModel.name!,
                         style: TextStyle(
                           fontSize: 18.5,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       Text(
-                        "last seen today at 12:05",
+                        _typing ?? "Last seen 11:30PM",
                         style: TextStyle(
                           fontSize: 13,
                         ),
@@ -207,13 +260,13 @@ class _IndividualPageState extends State<IndividualPage> {
                         }
                         if (messages[index].type == "source") {
                           return OwnMessageCard(
-                            message: messages[index].message,
-                            time: messages[index].time,
+                            message: messages[index].message!,
+                            time: messages[index].time!,
                           );
                         } else {
                           return ReplyCard(
-                            message: messages[index].message,
-                            time: messages[index].time,
+                            message: messages[index].message!,
+                            time: messages[index].time!,
                           );
                         }
                       },
@@ -245,10 +298,13 @@ class _IndividualPageState extends State<IndividualPage> {
                                     minLines: 1,
                                     onChanged: (value) {
                                       if (value.length > 0) {
+                                        sendTyping(true);
+
                                         setState(() {
                                           sendButton = true;
                                         });
                                       } else {
+                                        sendTyping(false);
                                         setState(() {
                                           sendButton = false;
                                         });
@@ -329,12 +385,13 @@ class _IndividualPageState extends State<IndividualPage> {
                                             curve: Curves.easeOut);
                                         sendMessage(
                                             _controller.text,
-                                            widget.sourchat.id,
-                                            widget.chatModel.id);
+                                            widget.sourchat.id!,
+                                            widget.chatModel.id!);
                                         _controller.clear();
                                         setState(() {
                                           sendButton = false;
                                         });
+                                        sendTyping(false);
                                       }
                                     },
                                   ),
@@ -448,13 +505,54 @@ class _IndividualPageState extends State<IndividualPage> {
 
   Widget emojiSelect() {
     return EmojiPicker(
-        rows: 4,
-        columns: 7,
-        onEmojiSelected: (emoji, category) {
+        config: Config(
+            columns: 7,
+            // Issue: https://github.com/flutter/flutter/issues/28894
+            emojiSizeMax: 32 * (Platform.isIOS ? 1.30 : 1.0),
+            verticalSpacing: 0,
+            horizontalSpacing: 0,
+            initCategory: Category.RECENT,
+            bgColor: const Color(0xFFF2F2F2),
+            indicatorColor: Colors.blue,
+            iconColor: Colors.grey,
+            iconColorSelected: Colors.blue,
+            progressIndicatorColor: Colors.blue,
+            backspaceColor: Colors.blue,
+            showRecentsTab: true,
+            recentsLimit: 28,
+            noRecentsText: 'No Recents',
+            noRecentsStyle:
+                const TextStyle(fontSize: 20, color: Colors.black26),
+            tabIndicatorAnimDuration: kTabScrollDuration,
+            categoryIcons: const CategoryIcons(),
+            buttonMode: ButtonMode.MATERIAL),
+        onEmojiSelected: (category, emoji) {
           print(emoji);
           setState(() {
             _controller.text = _controller.text + emoji.emoji;
           });
         });
+  }
+}
+
+class TypingModel {
+  String? id;
+  String? username;
+  bool? typing;
+
+  TypingModel({this.id, this.username, this.typing});
+
+  TypingModel.fromJson(Map<String, dynamic> json) {
+    id = json['id'];
+    username = json['username'];
+    typing = json['typing'];
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = new Map<String, dynamic>();
+    data['id'] = this.id;
+    data['username'] = this.username;
+    data['typing'] = this.typing;
+    return data;
   }
 }
