@@ -48,7 +48,7 @@ class _IndividualPageState extends State<IndividualPage> {
   void connect() {
     try {
       // MessageModel messageModel = MessageModel(sourceId: widget.sourceChat.id.toString(),targetId: );
-      socket = IO.io("http://192.168.43.170:5000", <String, dynamic>{
+      socket = IO.io("http://192.168.136.221:5000", <String, dynamic>{
         "transports": ["websocket"],
         "autoConnect": false,
       });
@@ -516,13 +516,12 @@ class _IndividualPageState extends State<IndividualPage> {
             indicatorColor: Colors.blue,
             iconColor: Colors.grey,
             iconColorSelected: Colors.blue,
-            progressIndicatorColor: Colors.blue,
+            skinToneIndicatorColor: Colors.blue,
             backspaceColor: Colors.blue,
             showRecentsTab: true,
             recentsLimit: 28,
-            noRecentsText: 'No Recents',
-            noRecentsStyle:
-                const TextStyle(fontSize: 20, color: Colors.black26),
+            noRecents: Text('No Recents',
+                style: TextStyle(fontSize: 20, color: Colors.black26)),
             tabIndicatorAnimDuration: kTabScrollDuration,
             categoryIcons: const CategoryIcons(),
             buttonMode: ButtonMode.MATERIAL),
